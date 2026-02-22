@@ -13,7 +13,7 @@ from rank_bm25 import BM25Okapi
 from ragbook.chunking import build_chunks
 from ragbook.embeddings import EmbeddingCache, EmbeddingModel
 from ragbook.ingest import ingest_pdf
-from ragbook.utils import LOGGER, ensure_dir, read_jsonl, tokenize_for_bm25, write_jsonl
+from ragbook.utils import LOGGER, ensure_dir, make_chunk_id, read_jsonl, tokenize_for_bm25, write_jsonl
 
 
 @dataclass
@@ -27,24 +27,38 @@ class LoadedIndex:
 
 
 def build_and_persist_index(
-    pdf_path: Path,
+    pdf_paths: list[Path],
     out_dir: Path,
     embed_model: str | None = None,
 ) -> None:
     ensure_dir(out_dir)
 
-    book_title = pdf_path.stem
-    pages = ingest_pdf(pdf_path)
-    chunks = build_chunks(pages=pages, book_title=book_title)
+    if not pdf_paths:
+        raise ValueError("At least one PDF path is required.")
 
-    if not chunks:
-        raise RuntimeError("No chunks were created from the PDF.")
+    all_chunks: list[dict[str, Any]] = []
+    doc_meta: list[dict[str, str]] = []
+    for pdf_path in pdf_paths:
+        resolved = pdf_path.resolve()
+        book_title = resolved.stem
+        pages = ingest_pdf(resolved)
+        chunks = build_chunks(pages=pages, book_title=book_title)
+        for c in chunks:
+            c["source_pdf"] = str(resolved)
+        all_chunks.extend(chunks)
+        doc_meta.append({"book_title": book_title, "pdf_path": str(resolved)})
+
+    if not all_chunks:
+        raise RuntimeError("No chunks were created from the provided PDF(s).")
+
+    for i, chunk in enumerate(all_chunks, start=1):
+        chunk["chunk_id"] = make_chunk_id(i)
 
     chunks_path = out_dir / "chunks.jsonl"
-    write_jsonl(chunks_path, chunks)
-    LOGGER.info("Wrote %d chunks -> %s", len(chunks), chunks_path)
+    write_jsonl(chunks_path, all_chunks)
+    LOGGER.info("Wrote %d chunks -> %s", len(all_chunks), chunks_path)
 
-    texts = [c["text"] for c in chunks]
+    texts = [c["text"] for c in all_chunks]
     embedder = EmbeddingModel.create(embed_model)
 
     cache_path = out_dir / "emb_cache.db"
@@ -64,11 +78,15 @@ def build_and_persist_index(
 
     meta = {
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
-        "book_title": book_title,
-        "pdf_path": str(pdf_path.resolve()),
-        "num_chunks": len(chunks),
+        "num_documents": len(doc_meta),
+        "documents": doc_meta,
+        "num_chunks": len(all_chunks),
         "embed_model": embedder.model_name,
     }
+    if len(doc_meta) == 1:
+        meta["book_title"] = doc_meta[0]["book_title"]
+        meta["pdf_path"] = doc_meta[0]["pdf_path"]
+
     with (out_dir / "meta.json").open("w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2)
 

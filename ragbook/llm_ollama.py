@@ -9,7 +9,14 @@ import requests
 
 from ragbook.utils import LOGGER
 
-PREFERRED_MODELS = ["qwen2.5:14b", "qwen2.5:7b", "llama3.1:8b", "mistral:7b"]
+PREFERRED_MODELS = [
+    "qwen:0.5b",
+    "qwen2.5:0.5b",
+    "qwen2.5:14b",
+    "qwen2.5:7b",
+    "llama3.1:8b",
+    "mistral:7b",
+]
 
 
 @dataclass
@@ -37,15 +44,38 @@ class OllamaClient:
         return cls(host=ollama_host, model=chosen)
 
     def generate(self, prompt: str, temperature: float = 0.0) -> str:
-        url = f"{self.host}/api/generate"
-        payload: dict[str, Any] = {
-            "model": self.model,
-            "prompt": prompt,
-            "stream": False,
-            "options": {"temperature": temperature},
-        }
+        def _request(model: str) -> requests.Response:
+            url = f"{self.host}/api/generate"
+            payload: dict[str, Any] = {
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+                "options": {"temperature": temperature},
+            }
+            return requests.post(url, json=payload, timeout=180)
+
+        def _missing_model(resp: requests.Response) -> bool:
+            if resp.status_code != 404:
+                return False
+            try:
+                msg = str(resp.json().get("error", "")).lower()
+            except Exception:
+                msg = (resp.text or "").lower()
+            return "model" in msg and ("not found" in msg or "no such" in msg)
+
         try:
-            resp = requests.post(url, json=payload, timeout=180)
+            resp = _request(self.model)
+            if _missing_model(resp):
+                available = _list_local_models(self.host)
+                fallback = _select_preferred_model([m for m in available if m != self.model])
+                if fallback:
+                    LOGGER.warning(
+                        "Model '%s' not found in Ollama. Retrying with '%s'.",
+                        self.model,
+                        fallback,
+                    )
+                    self.model = fallback
+                    resp = _request(self.model)
             resp.raise_for_status()
             data = resp.json()
             return (data.get("response") or "").strip()

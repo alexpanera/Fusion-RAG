@@ -12,7 +12,7 @@ A free, local-first MVP RAG pipeline for textbook PDFs:
 
 - Python 3.10+
 - `pip` (no conda)
-- Linux/macOS
+- Windows/Linux/macOS
 - Ollama running locally
 
 ## 1) Install Ollama + model
@@ -22,22 +22,26 @@ Install Ollama: https://ollama.com/download
 Then pull at least one model:
 
 ```bash
-ollama pull qwen2.5:14b
+ollama pull qwen:0.5b
 ```
 
 Fallbacks:
 
 ```bash
+ollama pull qwen2.5:0.5b
 ollama pull qwen2.5:7b
+ollama pull qwen2.5:14b
 ollama pull llama3.1:8b
 ollama pull mistral:7b
 ```
 
 Model auto-selection order:
-1. `qwen2.5:14b`
-2. `qwen2.5:7b`
-3. `llama3.1:8b`
-4. `mistral:7b`
+1. `qwen:0.5b`
+2. `qwen2.5:0.5b`
+3. `qwen2.5:14b`
+4. `qwen2.5:7b`
+5. `llama3.1:8b`
+6. `mistral:7b`
 
 You can override with `OLLAMA_MODEL`.
 
@@ -51,10 +55,16 @@ pip install -r requirements.txt
 
 ## 3) CLI usage
 
-### Ingest + index
+### Ingest + index (single PDF)
 
 ```bash
 python -m ragbook ingest --pdf path/to/book.pdf --out data/index
+```
+
+### Ingest + index (multiple PDFs into one index)
+
+```bash
+python -m ragbook ingest --pdf path/to/book1.pdf path/to/book2.pdf --out data/index
 ```
 
 Artifacts in `data/index/`:

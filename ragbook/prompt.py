@@ -7,9 +7,11 @@ def build_answer_prompt(question: str, retrieved: list[RetrievedChunk]) -> str:
     context_blocks: list[str] = []
     for i, r in enumerate(retrieved, start=1):
         section = r.chunk.get("section_title") or "N/A"
+        doc = r.chunk.get("book_title") or "N/A"
         c = format_citation(r.chunk)
         block = (
             f"[Context {i}] {c}\n"
+            f"Document: {doc}\n"
             f"Section: {section}\n"
             f"Text:\n{r.chunk['text']}"
         )

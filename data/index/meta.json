@@ -1,0 +1,7 @@
+{
+  "created_at_utc": "2026-02-22T19:56:37.089787+00:00",
+  "book_title": "fusionenergy",
+  "pdf_path": "C:\\Users\\paner\\Desktop\\proyectos\\Fusion-RAG\\data\\fusionenergy.pdf",
+  "num_chunks": 29,
+  "embed_model": "BAAI/bge-small-en-v1.5"
+}

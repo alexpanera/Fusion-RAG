@@ -21,7 +21,7 @@ def _default_top_k() -> int:
 
 def cmd_ingest(args: argparse.Namespace) -> None:
     build_and_persist_index(
-        pdf_path=Path(args.pdf),
+        pdf_paths=[Path(p) for p in args.pdf],
         out_dir=Path(args.out),
         embed_model=args.embed_model,
     )
@@ -44,7 +44,10 @@ def cmd_ask(args: argparse.Namespace) -> None:
         for r in retrieved:
             c = format_citation(r.chunk)
             section = r.chunk.get("section_title") or "N/A"
-            print(f"{r.rank}. {c} | {r.chunk['chunk_id']} | section={section} | score={r.hybrid_score:.3f}")
+            doc = r.chunk.get("book_title") or "N/A"
+            print(
+                f"{r.rank}. {c} | {r.chunk['chunk_id']} | doc={doc} | section={section} | score={r.hybrid_score:.3f}"
+            )
             print(r.chunk["text"])
             print("-" * 80)
         return
@@ -58,7 +61,8 @@ def cmd_ask(args: argparse.Namespace) -> None:
     for r in retrieved:
         c = format_citation(r.chunk)
         section = r.chunk.get("section_title") or "N/A"
-        print(f"- {c} | {r.chunk['chunk_id']} | section={section}")
+        doc = r.chunk.get("book_title") or "N/A"
+        print(f"- {c} | {r.chunk['chunk_id']} | doc={doc} | section={section}")
 
 
 def cmd_eval(args: argparse.Namespace) -> None:
@@ -77,7 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_ingest = sub.add_parser("ingest", help="Ingest PDF and build hybrid index")
-    p_ingest.add_argument("--pdf", required=True, help="Path to input PDF")
+    p_ingest.add_argument("--pdf", nargs="+", required=True, help="One or more input PDF paths")
     p_ingest.add_argument("--out", required=True, help="Output index directory")
     p_ingest.add_argument("--embed_model", default=None, help="Optional embedding model override")
     p_ingest.set_defaults(func=cmd_ingest)
