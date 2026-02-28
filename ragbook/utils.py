@@ -15,6 +15,16 @@ def configure_logging(level: str = "INFO") -> None:
         level=getattr(logging, level.upper(), logging.INFO),
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     )
+    for logger_name in [
+        "httpx",
+        "httpcore",
+        "sentence_transformers",
+        "transformers",
+        "huggingface_hub",
+        "huggingface_hub.utils._http",
+        "urllib3",
+    ]:
+        logging.getLogger(logger_name).setLevel(logging.ERROR)
 
 
 def ensure_dir(path: Path) -> None:

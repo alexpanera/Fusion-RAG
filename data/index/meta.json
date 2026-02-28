@@ -1,7 +1,16 @@
 {
-  "created_at_utc": "2026-02-22T19:56:37.089787+00:00",
-  "book_title": "fusionenergy",
-  "pdf_path": "C:\\Users\\paner\\Desktop\\proyectos\\Fusion-RAG\\data\\fusionenergy.pdf",
-  "num_chunks": 29,
+  "created_at_utc": "2026-02-28T17:09:25.938042+00:00",
+  "num_documents": 2,
+  "documents": [
+    {
+      "book_title": "fusionenergy",
+      "pdf_path": "C:\\Code\\Fusion-RAG\\data\\fusionenergy.pdf"
+    },
+    {
+      "book_title": "Nuclear_fusion_introduction_and_artificial_fusion_",
+      "pdf_path": "C:\\Code\\Fusion-RAG\\data\\Nuclear_fusion_introduction_and_artificial_fusion_.pdf"
+    }
+  ],
+  "num_chunks": 34,
   "embed_model": "BAAI/bge-small-en-v1.5"
 }

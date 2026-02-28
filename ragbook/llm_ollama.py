@@ -10,6 +10,7 @@ import requests
 from ragbook.utils import LOGGER
 
 PREFERRED_MODELS = [
+    "qwen2.5:3b",
     "qwen:0.5b",
     "qwen2.5:0.5b",
     "qwen2.5:14b",
@@ -17,6 +18,15 @@ PREFERRED_MODELS = [
     "llama3.1:8b",
     "mistral:7b",
 ]
+
+
+def _request_timeout_seconds() -> int:
+    raw = os.getenv("OLLAMA_TIMEOUT_SEC", "600")
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        LOGGER.warning("Invalid OLLAMA_TIMEOUT_SEC=%r. Falling back to 600.", raw)
+        return 600
 
 
 @dataclass
@@ -44,6 +54,8 @@ class OllamaClient:
         return cls(host=ollama_host, model=chosen)
 
     def generate(self, prompt: str, temperature: float = 0.0) -> str:
+        timeout_sec = _request_timeout_seconds()
+
         def _request(model: str) -> requests.Response:
             url = f"{self.host}/api/generate"
             payload: dict[str, Any] = {
@@ -52,7 +64,7 @@ class OllamaClient:
                 "stream": False,
                 "options": {"temperature": temperature},
             }
-            return requests.post(url, json=payload, timeout=180)
+            return requests.post(url, json=payload, timeout=timeout_sec)
 
         def _missing_model(resp: requests.Response) -> bool:
             if resp.status_code != 404:

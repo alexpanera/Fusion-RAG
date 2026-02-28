@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import sys
 from pathlib import Path
 
 from ragbook.eval import run_eval
@@ -108,6 +109,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
     parser = build_parser()
     args = parser.parse_args()
     configure_logging(args.log_level)

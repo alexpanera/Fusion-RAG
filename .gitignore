@@ -1,0 +1,4 @@
+.venv/
+__pycache__/
+data/index/emb_cache.db.*
+data/index_rebuilt/

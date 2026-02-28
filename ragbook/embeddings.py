@@ -1,5 +1,7 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
+import contextlib
+import io
 import os
 import shelve
 from dataclasses import dataclass
@@ -7,6 +9,11 @@ from pathlib import Path
 from typing import Sequence
 
 import numpy as np
+
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+
 from sentence_transformers import SentenceTransformer
 
 from ragbook.utils import LOGGER, sha1_text
@@ -71,7 +78,8 @@ class EmbeddingModel:
     def create(cls, model_name: str | None = None) -> "EmbeddingModel":
         name = model_name or os.getenv("EMBED_MODEL", DEFAULT_EMBED_MODEL)
         LOGGER.info("Loading embedding model: %s", name)
-        model = SentenceTransformer(name)
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            model = SentenceTransformer(name)
         return cls(model_name=name, model=model)
 
     def encode_texts(
@@ -81,12 +89,13 @@ class EmbeddingModel:
         batch_size: int = 32,
     ) -> np.ndarray:
         def _encoder(ts: Sequence[str]) -> np.ndarray:
-            arr = self.model.encode(
-                list(ts),
-                batch_size=batch_size,
-                show_progress_bar=False,
-                convert_to_numpy=True,
-            ).astype(np.float32)
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                arr = self.model.encode(
+                    list(ts),
+                    batch_size=batch_size,
+                    show_progress_bar=False,
+                    convert_to_numpy=True,
+                ).astype(np.float32)
             return _l2_normalize(arr)
 
         if cache is not None:
@@ -95,6 +104,7 @@ class EmbeddingModel:
         return _encoder(texts)
 
     def encode_query(self, text: str) -> np.ndarray:
-        arr = self.model.encode([text], convert_to_numpy=True, show_progress_bar=False).astype(np.float32)
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            arr = self.model.encode([text], convert_to_numpy=True, show_progress_bar=False).astype(np.float32)
         arr = _l2_normalize(arr)
         return arr[0]
