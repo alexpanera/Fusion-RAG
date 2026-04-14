@@ -100,7 +100,7 @@ def remove_repeated_headers_footers(
         top_counter.update(_normalize_line_for_repeat_detection(x) for x in top_lines)
         bottom_counter.update(_normalize_line_for_repeat_detection(x) for x in bottom_lines)
 
-    threshold = max(3, int(len(pages) * min_ratio))
+    threshold = min(max(3, int(len(pages) * min_ratio)), 30)
     repeated_top = {k for k, v in top_counter.items() if k and v >= threshold}
     repeated_bottom = {k for k, v in bottom_counter.items() if k and v >= threshold}
 

@@ -38,18 +38,30 @@ def build_and_persist_index(
 
     all_chunks: list[dict[str, Any]] = []
     doc_meta: list[dict[str, str]] = []
+    empty_pdfs: list[str] = []
     for pdf_path in pdf_paths:
         resolved = pdf_path.resolve()
         book_title = resolved.stem
         pages = ingest_pdf(resolved)
         chunks = build_chunks(pages=pages, book_title=book_title)
+        if not chunks:
+            empty_pdfs.append(resolved.name)
+            LOGGER.warning(
+                "No chunks produced from '%s'; check that it is text-based (not scanned).",
+                resolved.name,
+            )
         for c in chunks:
             c["source_pdf"] = str(resolved)
         all_chunks.extend(chunks)
         doc_meta.append({"book_title": book_title, "pdf_path": str(resolved)})
 
     if not all_chunks:
-        raise RuntimeError("No chunks were created from the provided PDF(s).")
+        raise RuntimeError(
+            f"No chunks were created from {len(pdf_paths)} PDF(s) "
+            f"({', '.join(empty_pdfs)}). "
+            "Ensure the files are text-based PDFs (not scanned images). "
+            "If scanned, run OCR preprocessing first."
+        )
 
     for i, chunk in enumerate(all_chunks, start=1):
         chunk["chunk_id"] = make_chunk_id(i)

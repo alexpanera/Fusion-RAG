@@ -8,6 +8,7 @@ from ragbook.index import load_index
 from ragbook.llm_ollama import OllamaClient
 from ragbook.prompt import build_answer_prompt
 from ragbook.retrieve import hybrid_retrieve
+from ragbook.utils import LOGGER
 
 
 def _contains_any_keyword(text: str, keywords: list[str]) -> bool:
@@ -41,7 +42,13 @@ def run_eval(
             prompt = build_answer_prompt(question, retrieved)
             try:
                 answer = llm.generate(prompt)
-            except Exception:
+            except Exception as exc:
+                LOGGER.warning(
+                    "LLM generation failed for question %d (%r): %s",
+                    line_no,
+                    question[:80],
+                    exc,
+                )
                 answer = ""
 
             answer_hit = _contains_any_keyword(answer, expected_keywords)

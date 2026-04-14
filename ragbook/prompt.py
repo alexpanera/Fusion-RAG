@@ -7,7 +7,7 @@ from ragbook.retrieve import RetrievedChunk, format_citation
 
 
 def _max_context_chars() -> int:
-    raw = os.getenv("RAG_MAX_CONTEXT_CHARS", "2000")
+    raw = os.getenv("RAG_MAX_CONTEXT_CHARS", "6000")
     try:
         return max(500, int(raw))
     except ValueError:

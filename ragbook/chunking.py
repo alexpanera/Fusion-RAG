@@ -24,11 +24,25 @@ def _is_all_caps_heading(line: str) -> bool:
     return s.upper() == s
 
 
+def _next_line_is_body_text(next_line: str) -> bool:
+    """Return True when the next line looks like paragraph text, not another heading."""
+    n = next_line.strip()
+    if not n:
+        return True  # blank line: classic heading separator
+    if len(n) > 60:
+        return True  # long line is almost certainly body text
+    if n[0].islower():
+        return True  # starts lowercase -> continuation text
+    if re.match(r"^\d+[\.\)]\s+\S", n):
+        return True  # numbered list item
+    return False
+
+
 def _is_title_case_heading(line: str, next_line: str) -> bool:
     s = line.strip()
     if not s or len(s) > 120:
         return False
-    if next_line.strip() != "":
+    if not _next_line_is_body_text(next_line):
         return False
     words = re.findall(r"[A-Za-z][A-Za-z'\-]*", s)
     if not words or len(words) > 14:
@@ -134,8 +148,6 @@ def build_chunks(
             just_flushed = True
 
     if current and not just_flushed:
-        if chunks and current_tokens < target_min_tokens:
-            pass
         flush_chunk(current)
 
     return chunks

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from ragbook.index import LoadedIndex
-from ragbook.utils import citation, tokenize_for_bm25
+from ragbook.utils import LOGGER, citation, tokenize_for_bm25
 
 
 @dataclass
@@ -27,6 +27,13 @@ def hybrid_retrieve(
     n_docs = len(index.chunks)
     if n_docs == 0:
         return []
+    if top_k > n_docs:
+        LOGGER.warning(
+            "top_k=%d exceeds index size (%d docs); results will be capped at %d.",
+            top_k,
+            n_docs,
+            n_docs,
+        )
 
     qvec = index.embedder.encode_query(query).astype("float32")[None, :]
     dense_n = min(n_docs, max(top_k * 8, 50))
