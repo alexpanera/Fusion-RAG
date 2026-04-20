@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ragbook.eval import run_eval
 from ragbook.index import build_and_persist_index, load_index
-from ragbook.llm_ollama import OllamaClient
+from ragbook.llm_ollama import OllamaClient, suggest_rag_settings
 from ragbook.prompt import build_answer_prompt
 from ragbook.retrieve import format_citation, hybrid_retrieve
 from ragbook.utils import LOGGER, configure_logging
@@ -31,7 +31,20 @@ def cmd_ingest(args: argparse.Namespace) -> None:
 
 def cmd_ask(args: argparse.Namespace) -> None:
     idx = load_index(Path(args.index), embed_model_override=args.embed_model)
-    top_k = args.top_k if args.top_k is not None else _default_top_k()
+
+    # Create the LLM client first so we know which model is selected,
+    # then auto-detect the best top_k and context budget for that model/hardware.
+    llm = OllamaClient.create(model_override=args.ollama_model)
+    auto_top_k, auto_chars = suggest_rag_settings(llm.host, llm.model)
+
+    # CLI flags and env vars take precedence; auto-settings fill in the rest.
+    top_k = args.top_k if args.top_k is not None else auto_top_k
+    # Push the auto-detected context budget into the environment so
+    # build_answer_prompt (which reads RAG_MAX_CONTEXT_CHARS) picks it up,
+    # but only when the user hasn't already set the variable.
+    if not os.getenv("RAG_MAX_CONTEXT_CHARS"):
+        os.environ["RAG_MAX_CONTEXT_CHARS"] = str(auto_chars)
+
     retrieved = hybrid_retrieve(
         idx,
         query=args.q,
@@ -53,7 +66,6 @@ def cmd_ask(args: argparse.Namespace) -> None:
             print("-" * 80)
         return
 
-    llm = OllamaClient.create(model_override=args.ollama_model)
     prompt = build_answer_prompt(args.q, retrieved)
     answer = llm.generate(prompt)
 

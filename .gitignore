@@ -2,3 +2,6 @@
 __pycache__/
 data/index/emb_cache.db.*
 data/index_rebuilt/
+CLAUDE.md
+.claude/
+data/main5.pdf

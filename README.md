@@ -166,9 +166,45 @@ Output CSV columns:
 
 ---
 
+## Auto-tuning
+
+ragbook automatically selects the best `top_k` and context size for your machine and model — no manual tuning needed.
+
+On each `ask` call it:
+1. Parses the model's parameter count from its name (`qwen2.5:7b` → 7 B)
+2. Queries Ollama to check whether the model is running on GPU or CPU
+3. Looks up the best settings from a built-in table
+
+You can see what was chosen by passing `--log-level DEBUG`:
+```
+Auto-settings: model=qwen2.5:7b params=7.0B gpu=False → top_k=2 context_chars=3000
+```
+
+| Model size | Hardware | top_k | context chars |
+|-----------|----------|-------|---------------|
+| ≤ 3 B | CPU | 2 | 3 000 |
+| ≤ 3 B | GPU | 6 | 8 000 |
+| ≤ 8 B | CPU | 2 | 3 000 |
+| ≤ 8 B | GPU | 6 | 8 000 |
+| ≤ 14 B | CPU | 2 | 2 000 |
+| ≤ 14 B | GPU | 8 | 12 000 |
+| > 14 B | GPU | 8 | 16 000 |
+
+**Overrides always win.** Set env vars or CLI flags to bypass auto-tuning:
+```bash
+# Override for a single question
+python -m ragbook ask --index data/index --q "..." --top_k 6
+
+# Override for the whole session
+set RAG_TOP_K=6
+set RAG_MAX_CONTEXT_CHARS=8000
+```
+
+---
+
 ## Environment variables
 
-All optional. Set in your shell or a `.env` file before running.
+All optional. Auto-tuning sets `RAG_TOP_K` and `RAG_MAX_CONTEXT_CHARS` automatically if not provided.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -176,10 +212,8 @@ All optional. Set in your shell or a `.env` file before running.
 | `OLLAMA_MODEL` | auto-selected | Override which model to use |
 | `OLLAMA_TIMEOUT_SEC` | `600` | Request timeout in seconds |
 | `EMBED_MODEL` | `BAAI/bge-small-en-v1.5` | Embedding model override |
-| `RAG_TOP_K` | `2` | Default number of chunks to retrieve |
-| `RAG_MAX_CONTEXT_CHARS` | `3000` | Max characters of context sent to the LLM |
-
-> **Tuning tip:** `RAG_TOP_K=2` and `RAG_MAX_CONTEXT_CHARS=3000` are tuned for qwen2.5:7b on CPU. If you have a GPU or use a larger context window, raise both values (e.g. `TOP_K=6`, `MAX_CONTEXT_CHARS=8000`).
+| `RAG_TOP_K` | auto-tuned | Override number of chunks to retrieve |
+| `RAG_MAX_CONTEXT_CHARS` | auto-tuned | Override max characters of context sent to the LLM |
 
 ---
 
@@ -193,7 +227,7 @@ All optional. Set in your shell or a `.env` file before running.
 
 **"Not enough evidence" answers** — The question may not match your document's content. Try `--retrieval_only` to see what passages were retrieved. If retrieval looks correct but the model still fails, try a larger model (`qwen2.5:7b`).
 
-**Slow answers on CPU** — The 7B model on CPU takes 30–120 seconds per answer. Use `qwen2.5:3b` for faster (lower quality) responses, or run on a machine with a GPU.
+**Slow answers on CPU** — The 7B model on CPU takes 30–120 seconds per answer. ragbook auto-tunes the context size to keep this reasonable, but if it's still too slow try `qwen2.5:3b` or run on a machine with a GPU.
 
 **First run is slow** — The embedding model (~130 MB) downloads once on first use and is cached locally afterwards.
 
