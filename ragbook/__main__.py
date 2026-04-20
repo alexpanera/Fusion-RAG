@@ -15,9 +15,9 @@ from ragbook.utils import LOGGER, configure_logging
 
 def _default_top_k() -> int:
     try:
-        return int(os.getenv("RAG_TOP_K", "6"))
+        return int(os.getenv("RAG_TOP_K", "2"))
     except ValueError:
-        return 6
+        return 2
 
 
 def cmd_ingest(args: argparse.Namespace) -> None:

@@ -1,8 +1,7 @@
-# ragbook: Local Fusion Textbook RAG (Ollama + Hybrid Retrieval)
+# ragbook: Local PDF RAG (Ollama + Hybrid Retrieval)
 
-A free, local-first MVP RAG pipeline for textbook PDFs:
-- PDF ingestion with page-aware extraction
-- Section/paragraph chunking
+A local-first RAG pipeline for PDF documents — ask questions about your papers and books with fully private, offline inference:
+- PDF ingestion with section-aware chunking
 - Hybrid retrieval (FAISS dense + BM25 sparse)
 - Grounded answers via local Ollama LLM
 - Citations in `[p.X-Y | chunk_####]` format
@@ -14,34 +13,36 @@ A free, local-first MVP RAG pipeline for textbook PDFs:
 
 - Python 3.10+
 - Windows / Linux / macOS
-- Internet connection (first run only, to download the embedding model)
+- Internet connection (first run only, to download the embedding model ~130 MB)
 
 ---
 
 ## Step 1 — Install Ollama
 
-Ollama is the local LLM server that runs models on your machine. There are two things to install: the **Ollama app** and a **model**.
+Ollama is the local LLM server that runs models on your machine.
 
 ### 1a. Install the Ollama app
 
 Download and run the installer from **https://ollama.com/download**.
 
-After installing, the Ollama service starts automatically in the background (look for the llama icon in the system tray on Windows). You can verify it is running by opening your browser at `http://localhost:11434` — it should say `Ollama is running`.
+After installing, the Ollama service starts automatically in the background (look for the llama icon in the system tray on Windows). Verify it is running by opening `http://localhost:11434` in your browser — it should say `Ollama is running`.
 
 > **Note:** `pip install ollama` installs only a Python client library — it does NOT install the Ollama server. You must install the app from the link above.
 
 ### 1b. Pull a model
 
+**Recommended: qwen2.5:7b** (best quality for local CPU inference)
+
 If `ollama` is available in your terminal:
 ```bash
-ollama pull qwen2.5:3b
+ollama pull qwen2.5:7b
 ```
 
-If the `ollama` command is not found in your terminal (but the server is running), pull via Python instead:
+If the `ollama` command is not found (but the server is running), pull via Python instead:
 ```bash
 python -c "
 import requests, json
-resp = requests.post('http://localhost:11434/api/pull', json={'name': 'qwen2.5:3b'}, stream=True, timeout=600)
+resp = requests.post('http://localhost:11434/api/pull', json={'name': 'qwen2.5:7b'}, stream=True, timeout=600)
 for line in resp.iter_lines():
     if line:
         data = json.loads(line)
@@ -55,17 +56,15 @@ print('Done')
 "
 ```
 
-This downloads ~2 GB. Other supported models (auto-selected by preference order):
+Supported models (auto-selected in preference order):
 
-| Model | Size |
-|-------|------|
-| `qwen2.5:3b` | ~2 GB (recommended) |
-| `qwen:0.5b` | ~400 MB |
-| `qwen2.5:0.5b` | ~400 MB |
-| `qwen2.5:7b` | ~5 GB |
-| `qwen2.5:14b` | ~9 GB |
-| `llama3.1:8b` | ~5 GB |
-| `mistral:7b` | ~4 GB |
+| Model | Size | Notes |
+|-------|------|-------|
+| `qwen2.5:7b` | ~5 GB | **Recommended** — best quality on CPU |
+| `qwen2.5:14b` | ~9 GB | Higher quality, needs 12+ GB RAM |
+| `llama3.1:8b` | ~5 GB | Good alternative |
+| `mistral:7b` | ~4 GB | Good alternative |
+| `qwen2.5:3b` | ~2 GB | Lighter, lower quality |
 
 ---
 
@@ -89,31 +88,31 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-> The first run will also download the embedding model (`BAAI/bge-small-en-v1.5`, ~130 MB) from HuggingFace automatically.
+> The first run also downloads the embedding model (`BAAI/bge-small-en-v1.5`, ~130 MB) from HuggingFace automatically and caches it locally.
 
 ---
 
 ## Step 3 — Add your PDFs
 
-Place your text-based `.pdf` files anywhere you like (e.g. `data/`). This repo includes two sample PDFs under `data/` and a pre-built index under `data/index/` so you can skip straight to asking questions.
+Place your text-based `.pdf` files anywhere you like (e.g. `data/`). A pre-built sample index is included at `data/index/` so you can skip straight to asking questions.
 
-> **Scanned PDFs** (image-only, no selectable text) will not work. Run OCR on them first, or use a different PDF.
+> **Scanned PDFs** (image-only, no selectable text) will not work. Run OCR first, or use a different PDF.
 
 ---
 
 ## Step 4 — Build an index
 
-Skip this if you want to use the pre-built sample index at `data/index/`.
+Skip this step to use the included sample index at `data/index/`.
 
 ```bash
 # Single PDF
-python -m ragbook ingest --pdf data/fusionenergy.pdf --out data/index
+python -m ragbook ingest --pdf data/mybook.pdf --out data/index
 
-# Multiple PDFs into one index
+# Multiple PDFs into one shared index
 python -m ragbook ingest --pdf data/book1.pdf data/book2.pdf --out data/index
 ```
 
-This creates the following files in the output directory:
+Output files in the index directory:
 - `chunks.jsonl` — extracted text chunks with metadata
 - `faiss.index` — dense vector index
 - `bm25_tokens.pkl` — sparse BM25 index
@@ -128,13 +127,13 @@ This creates the following files in the output directory:
 python -m ragbook ask --index data/index --q "What is plasma confinement?"
 ```
 
-The answer is printed with inline citations (`[p.X-Y | chunk_####]`) and a source list at the end.
+Answers include inline citations (`[p.X-Y | chunk_####]`) and a source list.
 
 ### Useful flags
 
 ```bash
-# Return more context chunks (default is 6)
-python -m ragbook ask --index data/index --q "What is a tokamak?" --top_k 3
+# Retrieve more context chunks (default: 2)
+python -m ragbook ask --index data/index --q "What is a tokamak?" --top_k 4
 
 # Debug: show retrieved passages without calling the LLM
 python -m ragbook ask --index data/index --q "What is a tokamak?" --retrieval_only
@@ -150,7 +149,7 @@ python -m ragbook ask --index data/index --q "What is tritium?" --log-level DEBU
 
 ## Evaluate retrieval quality (optional)
 
-Create an eval file (`data/eval.jsonl`) with one question per line:
+Create `data/eval.jsonl` with one question per line:
 ```json
 {"question": "What is beta_N?", "expected_keywords": ["beta", "normalization"]}
 {"question": "What is a tokamak?", "expected_keywords": ["tokamak", "magnetic"]}
@@ -169,7 +168,7 @@ Output CSV columns:
 
 ## Environment variables
 
-All optional. Set them in your shell or a `.env` file before running.
+All optional. Set in your shell or a `.env` file before running.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -177,28 +176,44 @@ All optional. Set them in your shell or a `.env` file before running.
 | `OLLAMA_MODEL` | auto-selected | Override which model to use |
 | `OLLAMA_TIMEOUT_SEC` | `600` | Request timeout in seconds |
 | `EMBED_MODEL` | `BAAI/bge-small-en-v1.5` | Embedding model override |
-| `RAG_TOP_K` | `6` | Default number of chunks to retrieve |
-| `RAG_MAX_CONTEXT_CHARS` | `6000` | Max characters of context sent to the LLM |
+| `RAG_TOP_K` | `2` | Default number of chunks to retrieve |
+| `RAG_MAX_CONTEXT_CHARS` | `3000` | Max characters of context sent to the LLM |
+
+> **Tuning tip:** `RAG_TOP_K=2` and `RAG_MAX_CONTEXT_CHARS=3000` are tuned for qwen2.5:7b on CPU. If you have a GPU or use a larger context window, raise both values (e.g. `TOP_K=6`, `MAX_CONTEXT_CHARS=8000`).
 
 ---
 
 ## Troubleshooting
 
-**`ollama` command not found** — The Ollama app is installed but not in your PATH. Use the Python pull snippet in Step 1b, or find `ollama.exe` in your Start Menu, right-click → Open file location, and run it from there.
+**`ollama` command not found** — The app is installed but not in your PATH. Use the Python pull snippet in Step 1b instead.
 
-**`Ollama is not running` error** — Open the Ollama app from your Start Menu / Applications. Check `http://localhost:11434` in your browser to confirm it is running.
+**`Ollama is not running` error** — Open the Ollama app from your Start Menu. Check `http://localhost:11434` in your browser to confirm.
 
-**`No chunks were created` error** — Your PDF is likely scanned (image-only). Open it in a PDF viewer and try selecting text — if you can't select any text, it needs OCR preprocessing first.
+**`No chunks were created` error** — Your PDF is likely scanned (image-only). Try selecting text in a PDF viewer — if you can't select anything, it needs OCR preprocessing first.
 
-**Slow answers** — Use a smaller model (`qwen2.5:0.5b`) or reduce context with `--top_k 1`.
+**"Not enough evidence" answers** — The question may not match your document's content. Try `--retrieval_only` to see what passages were retrieved. If retrieval looks correct but the model still fails, try a larger model (`qwen2.5:7b`).
 
-**First run is slow** — The embedding model (~130 MB) is downloaded once on first use and cached locally afterwards.
+**Slow answers on CPU** — The 7B model on CPU takes 30–120 seconds per answer. Use `qwen2.5:3b` for faster (lower quality) responses, or run on a machine with a GPU.
+
+**First run is slow** — The embedding model (~130 MB) downloads once on first use and is cached locally afterwards.
 
 ---
 
-## Notes
+## How it works
 
-- PDF extraction uses PyMuPDF first; falls back to pdfplumber if extraction is sparse or fails.
-- Repeated headers and footers are automatically detected and removed before chunking.
+```
+PDF → text extraction (PyMuPDF / pdfplumber)
+    → section-aware chunking (heading detection + overlap)
+    → embeddings (BAAI/bge-small-en-v1.5, local)
+    → FAISS dense index + BM25 sparse index
+
+Question → embed query → hybrid retrieval (65% dense + 35% sparse)
+         → top-k chunks → prompt assembly
+         → Ollama LLM (local) → answer with citations
+```
+
+- PDF extraction uses PyMuPDF first, falls back to pdfplumber if extraction is sparse.
+- Repeated headers/footers are auto-detected and removed before chunking.
+- Unicode math symbols (σ, α, ×) are normalized to ASCII for reliable LLM reasoning.
 - Embeddings are cached on disk — re-indexing the same PDF is much faster the second time.
-- All inference is fully local with no paid APIs required.
+- All inference is fully local with no paid APIs or data sharing.

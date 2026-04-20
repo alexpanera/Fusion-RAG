@@ -10,13 +10,13 @@ import requests
 from ragbook.utils import LOGGER
 
 PREFERRED_MODELS = [
+    "qwen2.5:7b",
+    "qwen2.5:14b",
+    "llama3.1:8b",
+    "mistral:7b",
     "qwen2.5:3b",
     "qwen:0.5b",
     "qwen2.5:0.5b",
-    "qwen2.5:14b",
-    "qwen2.5:7b",
-    "llama3.1:8b",
-    "mistral:7b",
 ]
 
 
@@ -54,13 +54,42 @@ class OllamaClient:
         return cls(host=ollama_host, model=chosen)
 
     def generate(self, prompt: str, temperature: float = 0.0) -> str:
+        """Send a prompt via the /api/chat endpoint (system + user split).
+
+        The chat endpoint works significantly better than /api/generate for
+        instruction-tuned models because the system role and user role are kept
+        separate, matching how the model was fine-tuned.
+
+        The prompt is expected to follow the convention used by build_answer_prompt:
+        an instruction block followed by 'Question:' and 'Context:' sections.
+        We split it at 'Question:' so instructions become the system message and
+        the question + context become the user message.
+        """
         timeout_sec = _request_timeout_seconds()
 
+        split_marker = "\nQuestion:\n"
+        if split_marker in prompt:
+            system_part, user_part = prompt.split(split_marker, 1)
+            system_msg = system_part.strip()
+            # Strip the "Final answer:" generation cue — it was a hint for the
+            # raw /api/generate endpoint but confuses the chat API (the model
+            # sees it as part of the user message rather than a generation start).
+            user_text = ("Question:\n" + user_part).rstrip()
+            if user_text.endswith("Final answer:"):
+                user_text = user_text[: -len("Final answer:")].rstrip()
+            user_msg = user_text
+        else:
+            system_msg = "You are a helpful assistant."
+            user_msg = prompt.strip()
+
         def _request(model: str) -> requests.Response:
-            url = f"{self.host}/api/generate"
+            url = f"{self.host}/api/chat"
             payload: dict[str, Any] = {
                 "model": model,
-                "prompt": prompt,
+                "messages": [
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": user_msg},
+                ],
                 "stream": False,
                 "options": {"temperature": temperature},
             }
@@ -90,7 +119,8 @@ class OllamaClient:
                     resp = _request(self.model)
             resp.raise_for_status()
             data = resp.json()
-            return (data.get("response") or "").strip()
+            # /api/chat returns {"message": {"role": "assistant", "content": "..."}}
+            return (data.get("message", {}).get("content") or "").strip()
         except Exception as e:
             raise RuntimeError(f"Ollama generation failed: {e}") from e
 
